@@ -1433,6 +1433,20 @@ class QubitDigitalObject extends BaseDigitalObject
   public function importFromURI($uri, $options = array())
   {
     $filename = $this->getFilenameFromUri($uri);
+
+    // Set general properties that don't require downloading the asset
+    $this->usageId = QubitTerm::EXTERNAL_URI_ID;
+    $this->name = $filename;
+    $this->path = $uri;
+    $this->setMimeAndMediaType();
+
+    // If skipping download, stop here
+    if (isset($options['skip-download']) && $options['skip-download'])
+    {
+      return;
+    }
+
+    // Attempt to download the digital object
     $contents = $this->downloadExternalObject($uri);
 
     if (false === $this->localPath = Qubit::saveTemporaryFile($filename, $contents))
@@ -1440,18 +1454,14 @@ class QubitDigitalObject extends BaseDigitalObject
       throw new sfException('Encountered error fetching external resource.');
     }
 
+    // Attach downloaded file contents
     $asset = new QubitAsset($uri, $contents);
     $this->assets[] = $asset;
 
-    // Set digital object as external URI
-    $this->usageId = QubitTerm::EXTERNAL_URI_ID;
-
-    $this->name = $filename;
-    $this->path = $uri;
+    // Set properties derived from file contents
     $this->checksum = $asset->getChecksum();
     $this->checksumType = $asset->getChecksumAlgorithm();
     $this->byteSize = strlen($contents);
-    $this->setMimeAndMediaType();
   }
 
   /**

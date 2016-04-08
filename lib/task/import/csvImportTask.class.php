@@ -77,6 +77,12 @@ EOF;
         null,
         sfCommandOption::PARAMETER_NONE,
         "Attempt to update if description has already been imported."
+      ),
+      new sfCommandOption(
+        'skip-derivatives',
+        null,
+        sfCommandOption::PARAMETER_NONE,
+        "Skip creation of digital object derivatives."
       )
     ));
   }
@@ -958,7 +964,10 @@ EOF;
         {
           try
           {
-            if (!downloadExternalURIWithRetries($uri, $self->object))
+            $options = array('skip-download' => true);
+
+            // Attempt to download external digtal object
+            if (!downloadExternalURIWithRetries($uri, $self->object, $options))
             {
               $this->log("Failed to download $uri after multiple tries. Continuing task...");
             }
@@ -1101,7 +1110,7 @@ function refreshTaxonomyTerms($taxonomyId)
  *
  * @return bool  True if the digital object downloaded / saved, false if not.
  */
-function downloadExternalURIWithRetries($uri, $infoObj)
+function downloadExternalURIWithRetries($uri, $infoObj, $options = array())
 {
   $MAX_RETRIES = 3;
 
@@ -1111,7 +1120,13 @@ function downloadExternalURIWithRetries($uri, $infoObj)
     {
       $do = new QubitDigitalObject;
 
-      $do->importFromURI($uri);
+      // If skipping download of resource, we can't create derivatives
+      if (isset($options['skip-download']))
+      {
+        $do->createDerivatives = false;
+      }
+
+      $do->importFromURI($uri, $options);
       $do->informationObject = $infoObj;
       $do->save();
     }
