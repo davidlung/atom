@@ -1388,16 +1388,37 @@ class QubitDigitalObject extends BaseDigitalObject
    * @param string URI
    * @return string contents
    */
-  private function downloadExternalObject($uri)
+  private function downloadExternalObject($uri, $options = array())
   {
     // Initialize web browser
     $timeout = sfConfig::get("app_download_timeout");
     $browser = new sfWebBrowser(array(), null, array('Timeout' => $timeout));
-    $browser->get($uri);
 
-    if ($browser->get($uri)->responseIsError())
+    // Number of times to attempt download
+    $downloadAttempts = (isset($options['retry'])) ? intval($options['retry']) + 1 : 1;
+
+    for ($i = 0; $i < $downloadAttempts; $i++)
     {
-      return false;
+      try
+      {
+        $browser->get($uri);
+
+        if ($browser->get($uri)->responseIsError())
+        {
+          continue;
+        }
+      }
+      catch (Exception $e)
+      {
+        if ($e->getCode() === CURLE_OPERATION_TIMEDOUT)
+        {
+          continue;
+        }
+
+        throw $e;
+      }
+
+      break;
     }
 
     return $browser->getResponseText();
@@ -1440,15 +1461,18 @@ class QubitDigitalObject extends BaseDigitalObject
     $this->path = $uri;
     $this->setMimeAndMediaType();
 
-    // If skipping download, stop here
+    // If skip-download, don't download resource and don't create derivatives
     if (isset($options['skip-download']) && $options['skip-download'])
     {
+      $this->createDerivatives = false;
+
       return;
     }
 
     // Attempt to download the digital object
-    $contents = $this->downloadExternalObject($uri);
+    $contents = $this->downloadExternalObject($uri, $options);
 
+    // Save downloaded file to tmp directory
     if (false === $this->localPath = Qubit::saveTemporaryFile($filename, $contents))
     {
       throw new sfException('Encountered error fetching external resource.');
