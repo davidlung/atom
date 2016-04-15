@@ -962,20 +962,31 @@ EOF;
         // if both a URI and path are provided, the former is preferred.
         if ($uri = $self->rowStatusVars['digitalObjectURI'])
         {
+          $do = new QubitDigitalObject;
+          $do->informationObject = $self->object;
+
+          if (isset($self->options['skip-derivatives']) && $self->options['skip-derivatives'])
+          {
+            // If not creating derivatives, then skip download altogether
+            $options = array('skipDerivatives' => true);
+          }
+          else
+          {
+            // Try downloading external object up to three times (2 retries)
+            $options = array('retries' => 2);
+          }
+
+          // Catch digital object import errors to avoid killing whole import
           try
           {
-            $options = array('skip-download' => true);
-
-            // Attempt to download external digtal object
-            if (!downloadExternalURIWithRetries($uri, $self->object, $options))
-            {
-              $this->log("Failed to download $uri after multiple tries. Continuing task...");
-            }
+            $do->importFromURI($uri, $options);
           }
           catch (Exception $e)
           {
             print "\nFailed to download '$uri': ". $e->getMessage() ."\n";
           }
+
+          $do->save($conn);
         }
         else if ($path = $self->rowStatusVars['digitalObjectPath'])
         {
@@ -1100,48 +1111,4 @@ function refreshTaxonomyTerms($taxonomyId)
   $result = QubitFlatfileImport::loadTermsFromTaxonomies(array($taxonomyId => 'terms'));
 
   return $result['terms'];
-}
-
-/**
- * Downloads digital objects from a URI. Will retry a few times if we get any timeouts.
- *
- * @param string uri  The path to the external digital object, e.g.: https://www.example.com/hi.jpg
- * @param QubitInformationObject infoObj  The information object to associate this digital object with.
- *
- * @return bool  True if the digital object downloaded / saved, false if not.
- */
-function downloadExternalURIWithRetries($uri, $infoObj, $options = array())
-{
-  $MAX_RETRIES = 3;
-
-  for ($i = 0; $i < $MAX_RETRIES; $i++)
-  {
-    try
-    {
-      $do = new QubitDigitalObject;
-
-      // If skipping download of resource, we can't create derivatives
-      if (isset($options['skip-download']))
-      {
-        $do->createDerivatives = false;
-      }
-
-      $do->importFromURI($uri, $options);
-      $do->informationObject = $infoObj;
-      $do->save();
-    }
-    catch (Exception $e)
-    {
-      if ($e->getCode() === CURLE_OPERATION_TIMEDOUT)
-      {
-        continue;
-      }
-
-      throw $e;
-    }
-
-    break;
-  }
-
-  return $i < $MAX_RETRIES;
 }

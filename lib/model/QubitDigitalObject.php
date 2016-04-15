@@ -1388,37 +1388,16 @@ class QubitDigitalObject extends BaseDigitalObject
    * @param string URI
    * @return string contents
    */
-  private function downloadExternalObject($uri, $options = array())
+  private function downloadExternalObject($uri)
   {
     // Initialize web browser
     $timeout = sfConfig::get("app_download_timeout");
     $browser = new sfWebBrowser(array(), null, array('Timeout' => $timeout));
+    $browser->get($uri);
 
-    // Number of times to attempt download
-    $downloadAttempts = (isset($options['retry'])) ? intval($options['retry']) + 1 : 1;
-
-    for ($i = 0; $i < $downloadAttempts; $i++)
+    if ($browser->get($uri)->responseIsError())
     {
-      try
-      {
-        $browser->get($uri);
-
-        if ($browser->get($uri)->responseIsError())
-        {
-          continue;
-        }
-      }
-      catch (Exception $e)
-      {
-        if ($e->getCode() === CURLE_OPERATION_TIMEDOUT)
-        {
-          continue;
-        }
-
-        throw $e;
-      }
-
-      break;
+      return false;
     }
 
     return $browser->getResponseText();
@@ -1461,25 +1440,60 @@ class QubitDigitalObject extends BaseDigitalObject
     $this->path = $uri;
     $this->setMimeAndMediaType();
 
-    // If skip-download, don't download resource and don't create derivatives
-    if (isset($options['skip-download']) && $options['skip-download'])
+    // If not creating derivatives right now, don't download the resource
+    if (isset($options['skipDerivatives']) && $options['skipDerivatives'])
     {
       $this->createDerivatives = false;
 
       return;
     }
 
-    // Attempt to download the digital object
-    $contents = $this->downloadExternalObject($uri, $options);
+    // Allow multiple retries of download
+    $retries = 0;
+    if (isset($options['retries']) && 0 < $options['retries'])
+    {
+      $retries = $options['retries'];
+    }
+
+    // Attempt to download the digital object, with possible retries
+    for ($i=0; $i <= $retries; $i++)
+    {
+      try
+      {
+        $contents = $this->downloadExternalObject($uri, $options);
+      }
+      catch (Exception $e)
+      {
+        // Catch timeout error, and retry download if $retries > 0
+        if ($e->getCode() === CURLE_OPERATION_TIMEDOUT)
+        {
+          continue;
+        }
+
+        throw $e;
+      }
+
+      // If we have valid file contents, then don't retry download
+      if (false !== $contents)
+      {
+        break;
+      }
+    }
+
+    // Throw error if we couldn't download the remote resource even with retries
+    if (false === $contents)
+    {
+      throw new sfException(sprintf('Couldn\'t download "%s" (retries: %s).', $uri, --$i));
+    }
 
     // Save downloaded file to tmp directory
     if (false === $this->localPath = Qubit::saveTemporaryFile($filename, $contents))
     {
-      throw new sfException('Encountered error fetching external resource.');
+      throw new sfException(sprintf('Error writing downloaded file to "%s".', $this->localPath));
     }
 
-    // Attach downloaded file contents
-    $asset = new QubitAsset($uri, $contents);
+    // Attach downloaded file to digital object
+    $asset = new QubitAsset($this->localPath);
     $this->assets[] = $asset;
 
     // Set properties derived from file contents
