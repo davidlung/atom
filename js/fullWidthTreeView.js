@@ -27,23 +27,46 @@
     $('#fullwidth-treeview-row').animate({height: '100px'}, 500);
 
     // Initialize the jstree with json from server
-    $.get((window.location.pathname.match("^[^;]*")[0] + url), function(data)
-    {
+    //    $.get((window.location.pathname.match("^[^;]*")[0] + url), function(data)
+    //    {
+    //    	
+    //    });
+        var abc = data;
+    	var data = {};
+    	data.core = {
+    	    "animation" : 0,
+    	    "check_callback" : true,
+    	    "themes" : { "stripes" : true },
+    	    'data' : {
+    	      'url' : function (node) {
+    	        return window.location.pathname.match("^[^;]*")[0] + url;
+    	      },
+    	      'data' : function (node) {
+    	        return { 'id' : node.id };
+    	      }
+    	    }
+    	  },
+     
+    	
       // Configure jstree grid columns
       data.plugins = ['types'];
       data.types = {
+    		  "#" : {
+    		      "max_depth" : 40
+    		    },
         'default': {
-          'icon': 'fa fa-folder-o'
+          'icon': 'fa fa-folder-o',
+          "max_depth" : 40,
         },
-
+     
         // Item, File
         'Item': {
           'icon': 'fa fa-file-text-o'
         },
         'File': {
           'icon': 'fa fa-file-text-o'
-        },
-
+       },
+     
         // Series, Subseries, Subfonds
         'Series': {
           'icon': 'fa fa-folder-o'
@@ -59,13 +82,13 @@
         },
         
         // Fonds, Collection
-        'Fonds': {
-          'icon': 'fa fa-archive'
-        },
-        'Collection': {
-          'icon': 'fa fa-archive'
-        }
-      }
+       'Fonds': {
+         'icon': 'fa fa-archive'
+       },
+       'Collection': {
+         'icon': 'fa fa-archive'
+       }
+     }
 
       // Initialize jstree
       $('#fullwidth-treeview').jstree(data);
@@ -78,7 +101,6 @@
         active_node.scrollIntoView(true);
         $('body')[0].scrollIntoView(true);
       }
-    });
 
     // Bind click events to nodes to load the informationobject's page and insert the current page
     $("#fullwidth-treeview").bind("select_node.jstree", function(evt, data)
@@ -92,6 +114,7 @@
       // When an element is clicked in the tree ... fetch it up
       // window.location = window.location.origin + data.node.a_attr.href
       var url = data.node.a_attr.href;
+      
       $.get(url, function(response)
       {
         response = $(response);
