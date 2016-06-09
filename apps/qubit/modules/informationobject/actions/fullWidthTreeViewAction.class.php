@@ -180,7 +180,7 @@ protected function getItemIds($itemIdParam, $drafts = true, $parent = false)
           $parentSql
           $draftsSql
         ORDER BY io.lft
-        LIMIT $limitFrom, $limitTo;";
+        LIMIT $limitFrom, 100;";
 
     $conn = Propel::getConnection();
 
